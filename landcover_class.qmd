@@ -9,12 +9,12 @@ editor_options:
 ---
 # About
 
-Monitoring the distribution and change in land cover types can help us understand the impacts of phenomena like climate change, natural disasters, deforestation, and urbanization. Determining land cover types over large areas is a major application of remote sensing because we are able to distinguish different materials based on their spectral reflectance. 
+Monitoring the distribution and change in land cover types can help understand the impacts of phenomena like climate change, natural disasters, deforestation, and urbanization. Determining land cover types over large areas is a major application of remote sensing because this allows to distinguish different materials based on their spectral reflectance. 
 
-Classifying remotely sensed imagery into landcover classes enables us to understand the distribution and change in landcover types over large areas. There are many approaches for performing landcover classification -- *supervised* approaches use training data labeled by the user, whereas *unsupervised* approaches use algorithms to create groups which are identified by the user afterward.\
+Classifying remotely sensed imagery into landcover classes enables the ability to understand the distribution and change in landcover types over large areas. There are many approaches for performing landcover classification -- *supervised* approaches use training data labeled by the user, whereas *unsupervised* approaches use algorithms to create groups which are identified by the user afterward.\
 
 # Workflow 
-In this script, I will be using a form of supervised classification, a *decision tree classifier*. [Decision trees](https://medium.com/@ml.at.berkeley/machine-learning-crash-course-part-5-decision-trees-and-ensemble-models-dcc5a36af8cd) classify pixels using a series of conditions based on values in spectral bands. These conditions are developed based on training data. We will create a land cover classification for southern Santa Barbara County based on multi-spectral imagery and data on the location of 4 land cover types:
+In this script, I will be using a form of supervised classification, a *decision tree classifier*. [Decision trees](https://medium.com/@ml.at.berkeley/machine-learning-crash-course-part-5-decision-trees-and-ensemble-models-dcc5a36af8cd) classify pixels using a series of conditions based on values in spectral bands. These conditions are developed based on training data. I will create a land cover classification for southern Santa Barbara County based on multi-spectral imagery and data on the location of 4 land cover types:
 
 -   green vegetation\
 -   dry grass or soil\
@@ -83,8 +83,8 @@ plotRGB(landsat, r = 3, g = 2, blue = 1, stretch = "lin")
 ```
 
 #### Loading in the study area
-I am reading in the Southern Santa Barbara data and matching the crs in this data.
 
+I am reading in the Southern Santa Barbara data and matching the crs to crop and mask in the next section.
 ```{r include=TRUE}
 # read in shapefile for southern portion of SB county
 SB_count_south <- st_read("./data/santa_barbara/SB_county_south.shp")
@@ -96,7 +96,7 @@ plot(SB_count_south)
 
 #### Croping and masking Landsat data to study area
 
-In this section I am cropping the landsat data toward my Santa Barbara shape file and masking to the area we need, then removing some unnecessary data to plot faster. 
+In this section, I am cropping the landsat data toward my Santa Barbara shape file and masking to the area we need, then removing some unnecessary data to plot faster. 
 
 ```{r include=TRUE}
 # crop Landsat scene to the extent of the SB county shapefile
@@ -130,10 +130,10 @@ landsat <- (landsat* 0.0000275 - 0.2) #we multiply by 0.0000275 and add scale fa
 summary(landsat)
 ```
 
-
-## Classify the image
+## Classifying the image
 
 #### Extracting reflectance values for training data
+
 The shapefile that I am loading in is identifying different locations within our study area as containing one of our 4 land cover types. I then extract the spectral values at each site to create a data frame that relates land cover types to their spectral reflectance.
 
 ```{r include=TRUE}
