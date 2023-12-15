@@ -2,12 +2,13 @@
 title: 'Distribution of Land Cover Types'
 author: "{Diana Navarro}"
 output: html_document
-date: "2023-12-14"
+date: "2023-12-15"
 editor_options: 
   markdown: 
     wrap: 72
 ---
 # About
+
 Monitoring the distribution and change in land cover types can help us understand the impacts of phenomena like climate change, natural disasters, deforestation, and urbanization. Determining land cover types over large areas is a major application of remote sensing because we are able to distinguish different materials based on their spectral reflectance. 
 
 Classifying remotely sensed imagery into landcover classes enables us to understand the distribution and change in landcover types over large areas. There are many approaches for performing landcover classification -- *supervised* approaches use training data labeled by the user, whereas *unsupervised* approaches use algorithms to create groups which are identified by the user afterward.\
@@ -22,11 +23,11 @@ In this script, I will be using a form of supervised classification, a *decision
 
 ## Summary
 
--   load and process Landsat scene\
--   crop and mask Landsat data to study area\
--   extract spectral data at training sites\
--   train and apply decision tree classifier\
--   plot results
+-   loading and processing Landsat scene\
+-   croping and masking Landsat data to study area\
+-   extracting spectral data at training sites\
+-   training and applying decision tree classifier\
+-   plotting results
 
 ## Data
 
@@ -48,8 +49,10 @@ In this script, I will be using a form of supervised classification, a *decision
 knitr::opts_chunk$set(echo = TRUE)
 ```
 ## Process data
-#### Load packages and set working directory
-We'll be working with vector and raster data, so will need both `sf` and `terra`. To train our classification algorithm and plot the results, we'll use the `rpart` and `rpart.plot` packages.
+
+#### Loading packages
+I will be working with vector and raster data, so I will load the necessary libraries in.
+
 ```{r include=TRUE, message=FALSE, warning=FALSE}
 library(sf)
 library(terra)
@@ -63,8 +66,9 @@ rm(list = ls())
 
 ```
 
-#### Load Landsat data
-To create a raster stack, I will create a list of the files that we would like to work with and read them all in at once using the `rast` function. I can also update the names of the layers to match the spectral band and plot the true color image.
+#### Loading Landsat data
+
+In this section I am reading in the landsat data and updating the names of the layers to match the spectral band and plot the true color image.
 
 ```{r include=TRUE}
 # list files for each band, including the full file path
@@ -78,21 +82,22 @@ names(landsat) <- c("blue", "green", "red", "NIR", "SWIR1", "SWIR2")
 plotRGB(landsat, r = 3, g = 2, blue = 1, stretch = "lin")
 ```
 
-#### Load study area
-Read in the Southern Santa Barbara data since the training data we have only contains this area. 
-```{r include=TRUE}
+#### Loading in the study area
+I am reading in the Southern Santa Barbara data and matching the crs in this data.
 
+```{r include=TRUE}
 # read in shapefile for southern portion of SB county
 SB_count_south <- st_read("./data/santa_barbara/SB_county_south.shp")
 # project to match the Landsat data
 SB_count_south <- st_transform(SB_count_south, crs = st_crs(landsat))
 
 plot(SB_count_south)
-
 ```
 
-#### Crop and mask Landsat data to study area
-Now, we can crop and mask the Landsat data to our study area.
+#### Croping and masking Landsat data to study area
+
+In this section I am cropping the landsat data toward my Santa Barbara shape file and masking to the area we need, then removing some unnecessary data to plot faster. 
+
 ```{r include=TRUE}
 # crop Landsat scene to the extent of the SB county shapefile
 landsat_cropped <- crop(landsat, SB_count_south)
@@ -102,37 +107,34 @@ landsat_mask <- mask(landsat_cropped, SB_count_south)
 rm(landsat, landsat_cropped, SB_count_south)
 #plot it 
 plotRGB(landsat_mask, r = 3, g = 2, blue = 1, stretch = "lin")
-
 ```
 
-#### Convert Landsat values to reflectance
-Now we need to convert the values in our raster stack to correspond to reflectance values. To do so, we need to remove erroneous values and apply any [scaling factors](https://www.usgs.gov/faqs/how-do-i-use-scale-factor-landsat-level-2-science-products#:~:text=Landsat%20Collection%202%20surface%20temperature,the%20scale%20factor%20is%20applied.) to convert to reflectance.\
-
-In this case, we are working with [Landsat Collection 2](https://www.usgs.gov/landsat-missions/landsat-collection-2). The valid range of pixel values for this collection 7,273-43,636, with a multiplicative scale factor of 0.0000275 and an additive scale factor of -0.2. So we reclassify any erroneous values as `NA` and update the values for each pixel based on the scaling factors. Now the pixel values should range from 0-100%.
+#### Converting Landsat values to reflectance
+In this section, we need to convert the values in our raster stack to correspond to reflectance values. In order to do so, we need to remove erroneous values and apply any [scaling factors](https://www.usgs.gov/faqs/how-do-i-use-scale-factor-landsat-level-2-science-products#:~:text=Landsat%20Collection%202%20surface%20temperature,the%20scale%20factor%20is%20applied.) to convert to reflectance. I am also working with [Landsat Collection 2](https://www.usgs.gov/landsat-missions/landsat-collection-2), which is why we need to reclassify and rescale to reflectance.
 
 ```{r include=TRUE}
 #take a look at the masked object 
 summary(landsat_mask)
 
 # reclassify erroneous values as NA
-rcl <- matrix(c(-Inf, 7273, NA, 
-         43636, Inf, NA), 
+rcl <- matrix(c(-Inf, 7273, NA, #this is the valid range of values for the collection needed
+         43636, Inf, NA), #update the rest to be NA
        ncol = 3, 
        byrow = TRUE)
 
 landsat <- classify(landsat_mask, rcl = rcl)
 
 # adjust values based on scaling factor
-landsat <- (landsat* 0.0000275 - 0.2)
+landsat <- (landsat* 0.0000275 - 0.2) #we multiply by 0.0000275 and add scale factor of -.2 to update values to scale
 
 summary(landsat)
 ```
 
 
-## Classify image
+## Classify the image
 
-#### Extract reflectance values for training data
-We will load the shapefile identifying different locations within our study area as containing one of our 4 land cover types. We can then extract the spectral values at each site to create a data frame that relates land cover types to their spectral reflectance.
+#### Extracting reflectance values for training data
+The shapefile that I am loading in is identifying different locations within our study area as containing one of our 4 land cover types. I then extract the spectral values at each site to create a data frame that relates land cover types to their spectral reflectance.
 
 ```{r include=TRUE}
 # read in and transform training data
@@ -152,41 +154,43 @@ sb_training_data <- left_join(data_training_vals, training_data_attrs, by = c("I
 ```
 **This data is larger because its extracting pixels from polygons and converting to points.**
 
-#### Train decision tree classifier
-To train our decision tree, we first need to establish our model formula (i.e. what our response and predictor variables are). The `rpart` function implements the [CART algorithm](https://medium.com/geekculture/decision-trees-with-cart-algorithm-7e179acee8ff). The `rpart` function needs to know the model formula and training data you would like to use. Because we are performing a classification, we set `method = "class"`. We also set `na.action = na.omit` to remove any pixels with `NA`s from the analysis.\
-
-To understand how our decision tree will classify pixels, we can plot the results. The decision tree is comprised of a hierarchy of binary decisions. Each decision rule has 2 outcomes based on a conditional statement pertaining to values in each spectral band.   
+#### Training decision tree classifier
+In order to train the decision tree, I first need to establish the model formula (i.e. what our response and predictor variables are) by using `rpart` which implements the [CART algorithm](https://medium.com/geekculture/decision-trees-with-cart-algorithm-7e179acee8ff).
 
 ```{r include=TRUE}
 # establish model formula
 SB_formula <- type ~ red + green + blue + NIR + SWIR1 + SWIR2
 
 # train decision tree
-sb_decision_tree <- rpart(formula = SB_formula, 
-      data = sb_training_data,
-      method = "class",
-      na.action = na.omit)
+sb_decision_tree <- rpart(formula = SB_formula, #needs to know model formula
+      data = sb_training_data, #needs training data 
+      method = "class", #because we are performing classification
+      na.action = na.omit) #remove any pixels with NAs from the analysis
 
 # plot decision tree
 prp(sb_decision_tree)
 
 ```
 
-#### Apply decision tree
-Now that we have created our decision tree, we can apply it to our entire image. The `terra` package includes a `predict()` function that allows us to apply a model to our data. In order for this to work properly, the names of the layers need to match the column names of the predictors we used to train our decision tree. The `predict()` function will return a raster layer with integer values. These integer values correspond to the *factor levels* in the training data. To figure out what category each integer corresponds to, we can inspect the levels of our training data. 
+**To understand how the decision tree will classify pixels, I plotted the results. This decision tree is comprised of a hierarchy of binary decisions and each decision rule has 2 outcomes based on a conditional statement pertaining to values in each spectral band.**
+
+#### Applying the decision tree
+Now that I have created the decision tree, I can apply it to our entire image. In order for this to work properly, the names of the layers need to match the column names of the predictors I used to train our decision tree. 
 
 ```{r include=TRUE}
 # classify image based on decision tree
-
-sb_classification <- predict(landsat, sb_decision_tree, type = "class", na.rm = TRUE)
+sb_classification <- predict(landsat, sb_decision_tree, type = "class", na.rm = TRUE) #predict allows us to apply model to our data
 
 # inspect level to understand the order of classes in prediction
 levels(sb_classification)
 
 ```
 
-#### Plot results
-Now we can plot the results and check out our land cover map!
+**The `predict()` function will return a raster layer with integer values. These integer values correspond to the *factor levels* in the training data. To figure out what category each integer corresponds to, I inspected the levels of our training data. **
+
+#### Ploting results
+Now I can plot the results and check out the finished land cover map!
+
 ```{r}
 # plot results
 tm_shape(sb_classification) +
